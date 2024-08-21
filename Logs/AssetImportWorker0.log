@@ -243,3 +243,11 @@ Received Import Request.
 Start importing Assets/Steamworks.NET/Plugins/Steamworks.NET/Steam.cs using Guid(418cc75b197f3e244920b3d1803f3ecd) Importer(815301076,1909f56bfc062723c751e8b465ee728b)  -> (artifact id: '7f7f800a17bb97166e424065311c3fdf') in 0.000546 seconds
 Number of updated asset objects reloaded before import = 0
 Number of asset objects unloaded after import = 0
+========================================================================
+Received Prepare
+Begin MonoManager ReloadAssembly
+Symbol file LoadedFromMemory is not a mono symbol file
+- Loaded All Assemblies, in  0.426 seconds
+Refreshing native plugins compatible for Editor in 8.44 ms, found 3 plugins.
+Native extension for WindowsStandalone target not found
+Native extension for Android target not found
