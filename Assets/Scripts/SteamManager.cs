@@ -47,10 +47,10 @@ public class SteamManager : MonoBehaviour {
 		}
 	}
 
-	private SteamAPIWarningMessageHook_t m_SteamAPIWarningMessageHook;
-	private static void SteamAPIDebugTextHook(int nSeverity, System.Text.StringBuilder pchDebugText) {
-		Debug.LogWarning(pchDebugText);
-	}
+	// private SteamAPIWarningMessageHook_t m_SteamAPIWarningMessageHook;
+	// private static void SteamAPIDebugTextHook(int nSeverity, System.Text.StringBuilder pchDebugText) {
+	// 	Debug.LogWarning(pchDebugText);
+	// }
 
 	private void Awake() {
 		// Only one instance of SteamManager at a time!
@@ -124,12 +124,12 @@ public class SteamManager : MonoBehaviour {
 			return;
 		}
 
-		if (m_SteamAPIWarningMessageHook == null) {
-			// Set up our callback to receive warning messages from Steam.
-			// You must launch with "-debug_steamapi" in the launch args to receive warnings.
-			m_SteamAPIWarningMessageHook = new SteamAPIWarningMessageHook_t(SteamAPIDebugTextHook);
-			SteamClient.SetWarningMessageHook(m_SteamAPIWarningMessageHook);
-		}
+		// if (m_SteamAPIWarningMessageHook == null) {
+		// 	// Set up our callback to receive warning messages from Steam.
+		// 	// You must launch with "-debug_steamapi" in the launch args to receive warnings.
+		// 	m_SteamAPIWarningMessageHook = new SteamAPIWarningMessageHook_t(SteamAPIDebugTextHook);
+		// 	SteamClient.SetWarningMessageHook(m_SteamAPIWarningMessageHook);
+		// }
 	}
 
 	// OnApplicationQuit gets called too early to shutdown the SteamAPI.

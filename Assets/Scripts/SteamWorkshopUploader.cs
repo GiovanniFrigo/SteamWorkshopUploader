@@ -42,6 +42,9 @@ public class SteamWorkshopUploader : MonoBehaviour
     private CallResult<CreateItemResult_t> itemCreatedCallResult;
     private CallResult<SubmitItemUpdateResult_t> itemSubmittedCallResult;
 
+    private string lastLoggedString;
+    private float lastLogTime;
+
     private void Awake()
     {
         SetupDirectories();
@@ -99,9 +102,6 @@ public class SteamWorkshopUploader : MonoBehaviour
 
     private void OnEnable()
     {
-        basePath = Application.dataPath + RelativeBasePath;
-        Debug.Log($"basePath is: {basePath}");
-
         if (SteamManager.Initialized)
         {
             itemCreatedCallResult = CallResult<CreateItemResult_t>.Create(OnItemCreated);
@@ -120,7 +120,8 @@ public class SteamWorkshopUploader : MonoBehaviour
 
     private void SetupDirectories()
     {
-        basePath = Application.dataPath + RelativeBasePath;
+        basePath = Path.Join(Application.dataPath, RelativeBasePath);
+        Debug.Log($"basePath is: {basePath}");
 
         if (!Directory.Exists(basePath))
         {
@@ -182,9 +183,7 @@ public class SteamWorkshopUploader : MonoBehaviour
 
         currentItemPanel.gameObject.SetActive(true);
 
-        var filename = currentPack.filename;
-
-        submitButtonText.text = $"Submit {Path.GetFileNameWithoutExtension(filename.Replace(".workshop", ""))}";
+        submitButtonText.text = "Submit";
         // modPackContents.text = JSON.Dump(currentPack, true);
 
         RefreshPreview();
@@ -219,7 +218,7 @@ public class SteamWorkshopUploader : MonoBehaviour
 
     private void RefreshPreview()
     {
-        string path = basePath + currentPack.previewfile;
+        string path = Path.Join(basePath, currentPack.previewfile);
 
         // NOTE : intentionally set texture to null if no texture is found
         var preview = Utils.LoadTextureFromFile(path);
@@ -230,7 +229,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         DisplayAndLogStatus("Validating mod pack...");
 
-        string path = basePath + pack.previewfile;
+        string path = Path.Join(basePath, pack.previewfile);
 
         var info = new FileInfo(path);
         if (info.Length >= 1024 * 1024)
@@ -265,17 +264,20 @@ public class SteamWorkshopUploader : MonoBehaviour
         // validate modpack name
         if (string.IsNullOrEmpty(packName) || packName.Contains("."))
         {
-            DisplayAndLogStatus($"Bad modpack name: {modPackName.text}");
+            DisplayAndLogStatus($"Invalid mod name: {packName}");
         }
         else
         {
             string filename = $"{basePath}{packName}.workshop.json";
 
-            var pack = new WorkshopModPack();
-            pack.contentfolder = modPackName.text;
+            var pack = new WorkshopModPack
+            {
+                contentfolder = packName,
+                title = packName
+            };
             pack.Save(filename);
 
-            Directory.CreateDirectory(basePath + modPackName.text);
+            Directory.CreateDirectory(Path.Join(basePath, modPackName.text));
 
             RefreshPackList();
 
@@ -318,7 +320,8 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         if (string.IsNullOrEmpty(currentPack.publishedfileid))
         {
-            SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(SteamManager.m_consumingAppId), EWorkshopFileType.k_EWorkshopFileTypeCommunity);
+            SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(SteamManager.m_consumingAppId),
+                                                      EWorkshopFileType.k_EWorkshopFileTypeCommunity);
             itemCreatedCallResult.Set(call, OnItemCreated);
 
             DisplayAndLogStatus("Creating new item...");
@@ -350,12 +353,14 @@ public class SteamWorkshopUploader : MonoBehaviour
 
     private void SetupModPack(UGCUpdateHandle_t handle, WorkshopModPack pack)
     {
+        SteamUGC.SetItemUpdateLanguage(handle, "english");
         SteamUGC.SetItemTitle(handle, pack.title);
         SteamUGC.SetItemDescription(handle, pack.description);
         SteamUGC.SetItemVisibility(handle, (ERemoteStoragePublishedFileVisibility)pack.visibility);
-        SteamUGC.SetItemContent(handle, basePath + pack.contentfolder);
-        SteamUGC.SetItemPreview(handle, basePath + pack.previewfile);
-        SteamUGC.SetItemMetadata(handle, pack.metadata);
+        SteamUGC.SetItemContent(handle, Path.Join(basePath, pack.contentfolder));
+        SteamUGC.SetItemPreview(handle, Path.Join(basePath, pack.previewfile));
+        SteamUGC.SetItemMetadata(handle, string.Empty);
+        SteamUGC.SetItemTags(handle, new List<string>());
 
         // pack.ValidateTags();
         // SteamUGC.SetItemTags(handle, pack.tags);
@@ -386,10 +391,10 @@ public class SteamWorkshopUploader : MonoBehaviour
                 DisplayAndLogStatus("Error: Timeout");
                 break;
             case EResult.k_EResultNotLoggedOn:
-                DisplayAndLogStatus("Error: You're not logged into Steam!");
+                DisplayAndLogStatus("Error: You're not logged into Steam!\nPlease restart Steam and retry.");
                 break;
             case EResult.k_EResultBanned:
-                DisplayAndLogStatus("You don't have permission to upload content to this hub because they have an active VAC or Game ban.");
+                DisplayAndLogStatus("You don't have permission to upload content to this hub because you have an active VAC or Game ban.");
                 break;
             case EResult.k_EResultServiceUnavailable:
                 DisplayAndLogStatus("The workshop server hosting the content is having issues - please retry.");
@@ -433,7 +438,6 @@ This has the benefit of directing the author to the workshop page so that they c
             var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={callback.m_nPublishedFileId}";
             DisplayAndLogStatus($"Item creation successful! Published Item ID: {callback.m_nPublishedFileId}\n" +
                                 $"<a href=\"{url}\">{url}</a>");
-            Debug.Log($"Item created: Id: {callback.m_nPublishedFileId}");
 
             currentPack.publishedfileid = callback.m_nPublishedFileId.ToString();
             /*
@@ -452,8 +456,15 @@ This has the benefit of directing the author to the workshop page so that they c
 
     private void DisplayAndLogStatus(string status)
     {
-        statusText.text = status;
-        Debug.Log(status);
+        // prevent log spamming to the console
+        if (lastLoggedString != status || Time.realtimeSinceStartup - lastLogTime > 0.5f)
+        {
+            statusText.text = status;
+            Debug.Log(status);
+
+            lastLoggedString = status;
+            lastLogTime = Time.realtimeSinceStartup;
+        }
     }
 
     private void OnItemSubmitted(SubmitItemUpdateResult_t callback, bool ioFailure)
@@ -475,7 +486,9 @@ This has the benefit of directing the author to the workshop page so that they c
         switch (callback.m_eResult)
         {
             case EResult.k_EResultOK:
-                DisplayAndLogStatus("SUCCESS! Item submitted!");
+                var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={callback.m_nPublishedFileId}";
+                DisplayAndLogStatus($"Item update successful! Published Item ID: {callback.m_nPublishedFileId}\n" +
+                                    $"<a href=\"{url}\">{url}</a>");
                 break;
             case EResult.k_EResultFail:
                 DisplayAndLogStatus("Upload failed.");
