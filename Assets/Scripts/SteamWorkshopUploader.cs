@@ -2,14 +2,14 @@
 using UnityEngine.UI;
 using System.Collections.Generic;
 using System.IO;
-
 using Steamworks;
 using TinyJSON;
 
 
 public class SteamWorkshopUploader : MonoBehaviour
 {
-    public const int version = 10;
+    private const string RelativeBasePath = "/../WorkshopContent/";
+    private const int Version = 1;
 
     public Text versionText;
     public Text statusText;
@@ -20,8 +20,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     public GameObject packListButtonPrefab;
     public Text fatalErrorText;
 
-    [Header("ModPack Interface")]
-    public RectTransform currentItemPanel;
+    [Header("ModPack Interface")] public RectTransform currentItemPanel;
     public Text submitButtonText;
     public Text modPackContents;
     public RawImage modPackPreview;
@@ -34,34 +33,31 @@ public class SteamWorkshopUploader : MonoBehaviour
     public InputField modPackTags;
     public Dropdown modPackVisibility;
 
-    private const string defaultFilename = "MyNewMod.workshop.json";
-    private const string defaultFolderName = "MyNewMod";
-    private const string relativeBasePath = "/../WorkshopContent/";
     private string basePath;
 
     private WorkshopModPack currentPack;
     private string currentPackFilename;
     private UGCUpdateHandle_t currentHandle = UGCUpdateHandle_t.Invalid;
 
-    protected CallResult<CreateItemResult_t> m_itemCreated;
-    protected CallResult<SubmitItemUpdateResult_t> m_itemSubmitted;
+    private CallResult<CreateItemResult_t> itemCreatedCallResult;
+    private CallResult<SubmitItemUpdateResult_t> itemSubmittedCallResult;
 
-    void Awake()
+    private void Awake()
     {
         SetupDirectories();
     }
 
-    void Start()
+    private void Start()
     {
-        versionText.text = string.Format("Steam Workshop Uploader - Build {0} --- App ID: {1}", version, SteamManager.m_steamAppId);
+        versionText.text = $"Golden Lap - Steam Workshop Uploader - Build {Version}";
 
-        if(SteamManager.m_steamAppId == 0)
+        if (SteamManager.m_steamAppId == 0)
         {
-            FatalError("Steam App ID isn't set! Make sure 'config.json' is placed next to the '.exe' file and contains an 'appId' entry with the correct app ID assigned.");
+            FatalError("Steam App ID isn't set! Make sure 'steam_appid.txt' is placed next to the '.exe' file and contains the correct appID.");
         }
-        else if(!SteamManager.Initialized)
+        else if (!SteamManager.Initialized)
         {
-            FatalError("Steam API not initialized :(\n Make sure you have the Steam client running.");
+            FatalError("Steam API not initialized.\n Make sure you have the Steam client running.");
         }
         else
         {
@@ -70,21 +66,27 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    void OnApplicationQuit()
+    private void OnApplicationQuit()
     {
         if (currentPack != null)
         {
             OnCurrentModPackChanges();
             SaveCurrentModPack();
         }
+
         SteamAPI.Shutdown();
     }
 
-    public void OnApplicationFocus()
+    public void OnApplicationFocus(bool hasFocus)
     {
+        if (!hasFocus)
+        {
+            return;
+        }
+
         RefreshPackList();
 
-        if(currentPack != null)
+        if (currentPack != null)
         {
             RefreshCurrentModPack();
         }
@@ -95,32 +97,30 @@ public class SteamWorkshopUploader : MonoBehaviour
         SteamAPI.Shutdown();
     }
 
-	private void OnEnable()
+    private void OnEnable()
     {
-        basePath = Application.dataPath + relativeBasePath;
-        Debug.Log("basePath is: " + basePath);
+        basePath = Application.dataPath + RelativeBasePath;
+        Debug.Log($"basePath is: {basePath}");
 
-        if(SteamManager.Initialized)
+        if (SteamManager.Initialized)
         {
-            m_NumberOfCurrentPlayers = CallResult<NumberOfCurrentPlayers_t>.Create(OnNumberOfCurrentPlayers);
-
-            m_itemCreated = CallResult<CreateItemResult_t>.Create(OnItemCreated);
-            m_itemSubmitted = CallResult<SubmitItemUpdateResult_t>.Create(OnItemSubmitted);
+            itemCreatedCallResult = CallResult<CreateItemResult_t>.Create(OnItemCreated);
+            itemSubmittedCallResult = CallResult<SubmitItemUpdateResult_t>.Create(OnItemSubmitted);
         }
-	}
+    }
 
-    public void FatalError(string message)
+    private void FatalError(string message)
     {
-        fatalErrorText.text = "FATAL ERROR:\n" + message;
+        fatalErrorText.text = $"FATAL ERROR:\n{message}";
         fatalErrorText.gameObject.SetActive(true);
 
         packListFrame.gameObject.SetActive(false);
         currentItemPanel.gameObject.SetActive(false);
     }
 
-    void SetupDirectories()
+    private void SetupDirectories()
     {
-        basePath = Application.dataPath + relativeBasePath;
+        basePath = Application.dataPath + RelativeBasePath;
 
         if (!Directory.Exists(basePath))
         {
@@ -128,20 +128,20 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    public string[] GetPackFilenames()
+    private string[] GetPackFilenames()
     {
         return Directory.GetFiles(basePath, "*.workshop.json", SearchOption.TopDirectoryOnly);
     }
 
-    public void ClearPackList()
+    private void ClearPackList()
     {
-        foreach(Transform child in packListRoot)
+        foreach (Transform child in packListRoot)
         {
             Destroy(child.gameObject);
         }
     }
 
-    public void RefreshPackList()
+    private void RefreshPackList()
     {
         ClearPackList();
 
@@ -149,17 +149,17 @@ public class SteamWorkshopUploader : MonoBehaviour
 
         // create list of buttons using prefabs
         // hook up their click events to the right function
-        for(int i=0; i < paths.Length; i++)
+        for (int i = 0; i < paths.Length; i++)
         {
             string packPath = paths[i];
             string packName = Path.GetFileName(packPath);
 
-            var buttonObj = Instantiate(packListButtonPrefab, Vector3.zero, Quaternion.identity) as GameObject;
+            var buttonObj = Instantiate(packListButtonPrefab, Vector3.zero, Quaternion.identity);
             var button = buttonObj.GetComponent<Button>();
             button.transform.SetParent(packListRoot);
 
-            button.GetComponentInChildren<Text>().text = packName.Replace(".workshop.json","");
-            
+            button.GetComponentInChildren<Text>().text = packName.Replace(".workshop.json", "");
+
             if (button != null)
             {
                 // sneaky weirdness required here!
@@ -172,9 +172,9 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    public void RefreshCurrentModPack()
+    private void RefreshCurrentModPack()
     {
-        if(currentPack == null)
+        if (currentPack == null)
         {
             currentItemPanel.gameObject.SetActive(false);
             return;
@@ -184,8 +184,8 @@ public class SteamWorkshopUploader : MonoBehaviour
 
         var filename = currentPack.filename;
 
-        submitButtonText.text = "Submit " + Path.GetFileNameWithoutExtension(filename.Replace(".workshop", ""));
-        modPackContents.text = JSON.Dump(currentPack, true);
+        submitButtonText.text = $"Submit {Path.GetFileNameWithoutExtension(filename.Replace(".workshop", ""))}";
+        // modPackContents.text = JSON.Dump(currentPack, true);
 
         RefreshPreview();
 
@@ -196,10 +196,10 @@ public class SteamWorkshopUploader : MonoBehaviour
         modPackTags.text = string.Join(",", currentPack.tags.ToArray());
         modPackVisibility.value = currentPack.visibility;
     }
-    
-    public void SelectModPack(string filename)
+
+    private void SelectModPack(string filename)
     {
-        if(currentPack != null)
+        if (currentPack != null)
         {
             OnCurrentModPackChanges();
             SaveCurrentModPack();
@@ -217,71 +217,66 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    public void EditModPack(string packPath)
-    {
-        System.Diagnostics.Process.Start(packPath);
-    }
-
-    public void RefreshPreview()
+    private void RefreshPreview()
     {
         string path = basePath + currentPack.previewfile;
-        
+
         // NOTE : intentionally set texture to null if no texture is found
         var preview = Utils.LoadTextureFromFile(path);
         modPackPreview.texture = preview;
     }
 
-    public bool ValidateModPack(WorkshopModPack pack)
+    private bool ValidateModPack(WorkshopModPack pack)
     {
-        statusText.text = "Validating mod pack...";
+        DisplayAndLogStatus("Validating mod pack...");
 
         string path = basePath + pack.previewfile;
 
         var info = new FileInfo(path);
         if (info.Length >= 1024 * 1024)
         {
-            statusText.text = "ERROR: Preview file must be <1MB!";
+            DisplayAndLogStatus("ERROR: Preview file must be <1MB!");
             return false;
         }
 
         return true;
     }
 
-    public void OnCurrentModPackChanges()
+    private void OnCurrentModPackChanges()
     {
         OnChanges(currentPack);
         RefreshCurrentModPack();
     }
 
-    public void OnChanges(WorkshopModPack pack)
+    private void OnChanges(WorkshopModPack pack)
     {
         // interface stuff
         pack.previewfile = modPackPreviewFilename.text;
         pack.title = modPackTitle.text;
         pack.description = modPackDescription.text;
-        pack.tags = new List<string>(modPackTags.text.Split(','));
+        pack.tags = string.IsNullOrEmpty(modPackTags.text) ? new List<string>() : new List<string>(modPackTags.text.Split(','));
         pack.visibility = modPackVisibility.value;
     }
 
-    public void AddModPack()
+    private void AddModPack()
     {
         var packName = modPackName.text;
 
         // validate modpack name
         if (string.IsNullOrEmpty(packName) || packName.Contains("."))
         {
-            statusText.text = "Bad modpack name: " + modPackName.text;
+            DisplayAndLogStatus($"Bad modpack name: {modPackName.text}");
         }
         else
         {
-            string filename = basePath + packName + ".workshop.json";
+            string filename = $"{basePath}{packName}.workshop.json";
 
             var pack = new WorkshopModPack();
             pack.contentfolder = modPackName.text;
             pack.Save(filename);
 
             Directory.CreateDirectory(basePath + modPackName.text);
-            
+
             RefreshPackList();
 
             SelectModPack(filename);
@@ -289,8 +284,8 @@ public class SteamWorkshopUploader : MonoBehaviour
             CreateWorkshopItem();
         }
     }
-    
-    public void SaveCurrentModPack()
+
+    private void SaveCurrentModPack()
     {
         if (currentPack != null && !string.IsNullOrEmpty(currentPackFilename))
         {
@@ -298,16 +293,16 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    public void SubmitCurrentModPack()
+    private void SubmitCurrentModPack()
     {
         if (currentPack != null)
         {
             OnChanges(currentPack);
             SaveCurrentModPack();
-            
+
             if (ValidateModPack(currentPack))
             {
-                if(string.IsNullOrEmpty(currentPack.publishedfileid))
+                if (string.IsNullOrEmpty(currentPack.publishedfileid))
                 {
                     CreateWorkshopItem();
                 }
@@ -323,10 +318,10 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         if (string.IsNullOrEmpty(currentPack.publishedfileid))
         {
-            SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(SteamManager.m_steamAppId), Steamworks.EWorkshopFileType.k_EWorkshopFileTypeCommunity);
-            m_itemCreated.Set(call, OnItemCreated);
+            SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(SteamManager.m_consumingAppId), EWorkshopFileType.k_EWorkshopFileTypeCommunity);
+            itemCreatedCallResult.Set(call, OnItemCreated);
 
-            statusText.text = "Creating new item...";
+            DisplayAndLogStatus("Creating new item...");
         }
     }
 
@@ -334,14 +329,14 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         if (string.IsNullOrEmpty(currentPack.publishedfileid))
         {
-            statusText.text = "ERROR: publishedfileid is empty, try creating the workshop item first...";
+            DisplayAndLogStatus("ERROR: publishedfileid is empty, try creating the workshop item first...");
             return;
         }
 
         ulong ulongId = ulong.Parse(pack.publishedfileid);
         var id = new PublishedFileId_t(ulongId);
 
-        UGCUpdateHandle_t handle = SteamUGC.StartItemUpdate(new AppId_t(SteamManager.m_steamAppId), id);
+        UGCUpdateHandle_t handle = SteamUGC.StartItemUpdate(new AppId_t(SteamManager.m_consumingAppId), id);
         //m_itemUpdated.Set(call);
         //OnItemUpdated(call, false);
 
@@ -362,14 +357,14 @@ public class SteamWorkshopUploader : MonoBehaviour
         SteamUGC.SetItemPreview(handle, basePath + pack.previewfile);
         SteamUGC.SetItemMetadata(handle, pack.metadata);
 
-        pack.ValidateTags();
-        SteamUGC.SetItemTags(handle, pack.tags);
+        // pack.ValidateTags();
+        // SteamUGC.SetItemTags(handle, pack.tags);
     }
 
     private void SubmitModPack(UGCUpdateHandle_t handle, WorkshopModPack pack)
     {
         SteamAPICall_t call = SteamUGC.SubmitItemUpdate(handle, pack.changenote);
-        m_itemSubmitted.Set(call, OnItemSubmitted);
+        itemSubmittedCallResult.Set(call, OnItemSubmitted);
         //In the same way as Creating a Workshop Item, confirm the user has accepted the legal agreement. This is necessary in case where the user didn't initially create the item but is editing an existing item.
     }
 
@@ -377,52 +372,52 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         if (ioFailure)
         {
-			statusText.text = "Error: I/O Failure! :(";
+            DisplayAndLogStatus("Error: I/O Failure!");
             return;
-		}
+        }
 
-        switch(callback.m_eResult)
+        switch (callback.m_eResult)
         {
             case EResult.k_EResultInsufficientPrivilege:
                 // you're banned!
-                statusText.text = "Error: Unfortunately, you're banned by the community from uploading to the workshop! Bummer. :(";
+                DisplayAndLogStatus("Error: Unfortunately, you're banned by the community from uploading to the workshop!");
                 break;
             case EResult.k_EResultTimeout:
-                statusText.text = "Error: Timeout :S";
+                DisplayAndLogStatus("Error: Timeout");
                 break;
             case EResult.k_EResultNotLoggedOn:
-                statusText.text = "Error: You're not logged into Steam!";
+                DisplayAndLogStatus("Error: You're not logged into Steam!");
                 break;
             case EResult.k_EResultBanned:
-                statusText.text = "You don't have permission to upload content to this hub because they have an active VAC or Game ban.";
+                DisplayAndLogStatus("You don't have permission to upload content to this hub because they have an active VAC or Game ban.");
                 break;
             case EResult.k_EResultServiceUnavailable:
-                statusText.text = "The workshop server hosting the content is having issues - please retry.";
+                DisplayAndLogStatus("The workshop server hosting the content is having issues - please retry.");
                 break;
             case EResult.k_EResultInvalidParam:
-                statusText.text = "One of the submission fields contains something not being accepted by that field.";
+                DisplayAndLogStatus("One of the submission fields contains something not being accepted by that field.");
                 break;
             case EResult.k_EResultAccessDenied:
-                statusText.text = "There was a problem trying to save the title and description. Access was denied.";
+                DisplayAndLogStatus("There was a problem trying to save the title and description. Access was denied.");
                 break;
             case EResult.k_EResultLimitExceeded:
-                statusText.text = "You have exceeded your Steam Cloud quota. Remove some items and try again.";
+                DisplayAndLogStatus("You have exceeded your Steam Cloud quota. Remove some items and try again.");
                 break;
             case EResult.k_EResultFileNotFound:
-                statusText.text = "The uploaded file could not be found.";
+                DisplayAndLogStatus("The uploaded file could not be found.");
                 break;
             case EResult.k_EResultDuplicateRequest:
-                statusText.text = "The file was already successfully uploaded. Please refresh.";
+                DisplayAndLogStatus("The file was already successfully uploaded. Please refresh.");
                 break;
             case EResult.k_EResultDuplicateName:
-                statusText.text = "You already have a Steam Workshop item with that name.";
+                DisplayAndLogStatus("You already have a Steam Workshop item with that name.");
                 break;
             case EResult.k_EResultServiceReadOnly:
-                statusText.text = "Due to a recent password or email change, you are not allowed to upload new content. Usually this restriction will expire in 5 days, but can last up to 30 days if the account has been inactive recently. ";
+                DisplayAndLogStatus("Due to a recent password or email change, you are not allowed to upload new content. Usually this restriction will expire in 5 days, but can last up to 30 days if the account has been inactive recently. ");
                 break;
         }
 
-        if(callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
+        if (callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
         {
             /*
              * Include text next to the button that submits an item to the workshop, something to the effect of: “By submitting this item, you agree to the workshop terms of service” (including the link)
@@ -433,10 +428,12 @@ This has the benefit of directing the author to the workshop page so that they c
              * */
         }
 
-		if(callback.m_eResult == EResult.k_EResultOK)
+        if (callback.m_eResult == EResult.k_EResultOK)
         {
-            statusText.text = "Item creation successful! Published Item ID: " + callback.m_nPublishedFileId.ToString();
-			Debug.Log("Item created: Id: " + callback.m_nPublishedFileId.ToString());
+            var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={callback.m_nPublishedFileId}";
+            DisplayAndLogStatus($"Item creation successful! Published Item ID: {callback.m_nPublishedFileId}\n" +
+                                $"<a href=\"{url}\">{url}</a>");
+            Debug.Log($"Item created: Id: {callback.m_nPublishedFileId}");
 
             currentPack.publishedfileid = callback.m_nPublishedFileId.ToString();
             /*
@@ -453,107 +450,88 @@ This has the benefit of directing the author to the workshop page so that they c
         }
     }
 
+    private void DisplayAndLogStatus(string status)
+    {
+        statusText.text = status;
+        Debug.Log(status);
+    }
+
     private void OnItemSubmitted(SubmitItemUpdateResult_t callback, bool ioFailure)
     {
         if (ioFailure)
         {
-			statusText.text = "Error: I/O Failure! :(";
+            DisplayAndLogStatus("Error: I/O Failure!");
             return;
-		}
+        }
 
-        if(callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
+        if (callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
         {
-            statusText.text = "You need to accept the Steam Workshop legal agreement for this game before you can upload items!";
+            DisplayAndLogStatus("You need to accept the Steam Workshop legal agreement for this game before you can upload items!");
             return;
         }
 
         currentHandle = UGCUpdateHandle_t.Invalid;
-        
-        switch(callback.m_eResult)
+
+        switch (callback.m_eResult)
         {
             case EResult.k_EResultOK:
-                statusText.text = "SUCCESS! Item submitted! :D :D :D";
+                DisplayAndLogStatus("SUCCESS! Item submitted!");
                 break;
             case EResult.k_EResultFail:
-                statusText.text = "Failed, dunno why :(";
+                DisplayAndLogStatus("Upload failed.");
                 break;
             case EResult.k_EResultInvalidParam:
-                statusText.text ="Either the provided app ID is invalid or doesn't match the consumer app ID of the item or, you have not enabled ISteamUGC for the provided app ID on the Steam Workshop Configuration App Admin page. The preview file is smaller than 16 bytes.";
+                DisplayAndLogStatus("Either the provided app ID is invalid or doesn't match the consumer app ID of the item or, you have not enabled ISteamUGC for the provided app ID on the Steam Workshop Configuration App Admin page. The preview file is smaller than 16 bytes.");
                 break;
             case EResult.k_EResultAccessDenied:
-                statusText.text ="ERROR: The user doesn't own a license for the provided app ID.";
+                DisplayAndLogStatus("ERROR: The user doesn't own a license for the provided app ID.");
                 break;
             case EResult.k_EResultFileNotFound:
-                statusText.text = "Failed to get the workshop info for the item or failed to read the preview file.";
+                DisplayAndLogStatus("Failed to get the workshop info for the item or failed to read the preview file.\nDid you manually delete the item from the workshop?");
                 break;
             case EResult.k_EResultLockingFailed:
-                statusText.text = "Failed to aquire UGC Lock.";
+                DisplayAndLogStatus("Failed to acquire UGC Lock.");
                 break;
             case EResult.k_EResultLimitExceeded:
-                statusText.text = "The preview image is too large, it must be less than 1 Megabyte; or there is not enough space available on the users Steam Cloud.";
+                DisplayAndLogStatus("The preview image is too large, it must be less than 1 Megabyte; or there is not enough space available on the users Steam Cloud.");
                 break;
         }
     }
 
     private void UpdateProgressBar(UGCUpdateHandle_t handle)
     {
-        ulong bytesDone;
-        ulong bytesTotal;
-        EItemUpdateStatus status = SteamUGC.GetItemUpdateProgress(handle, out bytesDone, out bytesTotal);
+        EItemUpdateStatus status = SteamUGC.GetItemUpdateProgress(handle, out var bytesDone, out var bytesTotal);
 
-        float progress = (float)bytesDone / (float)bytesTotal;
+        float progress = (float)bytesDone / bytesTotal;
         progressBar.value = progress;
 
-        switch(status)
+        switch (status)
         {
             case EItemUpdateStatus.k_EItemUpdateStatusCommittingChanges:
-                statusText.text = "Committing changes...";
+                DisplayAndLogStatus("Committing changes...");
                 break;
             case EItemUpdateStatus.k_EItemUpdateStatusUploadingPreviewFile:
-                statusText.text = "Uploading preview image...";
+                DisplayAndLogStatus("Uploading preview image...");
                 break;
             case EItemUpdateStatus.k_EItemUpdateStatusUploadingContent:
-                statusText.text = "Uploading content...";
+                DisplayAndLogStatus("Uploading content...");
                 break;
             case EItemUpdateStatus.k_EItemUpdateStatusPreparingConfig:
-                statusText.text = "Preparing configuration...";
+                DisplayAndLogStatus("Preparing configuration...");
                 break;
             case EItemUpdateStatus.k_EItemUpdateStatusPreparingContent:
-                statusText.text = "Preparing content...";
+                DisplayAndLogStatus("Preparing content...");
                 break;
             // from the docs: "The item update handle was invalid, the job might be finished, a SubmitItemUpdateResult_t call result should have been returned for it."
             // case EItemUpdateStatus.k_EItemUpdateStatusInvalid:
-            //     statusText.text = "Item invalid ... dunno why! :(";
+            //     DisplayAndLogStatus("Item invalid ... dunno why! :(")
             //     break;
         }
-
     }
 
-
-    private CallResult<NumberOfCurrentPlayers_t> m_NumberOfCurrentPlayers;
-
-    private void OnNumberOfCurrentPlayers(NumberOfCurrentPlayers_t pCallback, bool bIOFailure)
+    private void Update()
     {
-        if (pCallback.m_bSuccess != 1 || bIOFailure)
-        {
-            Debug.Log("There was an error retrieving the NumberOfCurrentPlayers.");
-        }
-        else
-        {
-            Debug.Log("The number of players playing your game: " + pCallback.m_cPlayers);
-        }
-    }
-
-	void Update ()
-    {
-        if (Input.GetKeyDown(KeyCode.F1))
-        {
-            SteamAPICall_t handle = SteamUserStats.GetNumberOfCurrentPlayers();
-            m_NumberOfCurrentPlayers.Set(handle);
-            Debug.Log("Called GetNumberOfCurrentPlayers()");
-        }
-
-	    if(currentHandle != UGCUpdateHandle_t.Invalid)
+        if (currentHandle != UGCUpdateHandle_t.Invalid)
         {
             UpdateProgressBar(currentHandle);
         }
@@ -561,27 +539,25 @@ This has the benefit of directing the author to the workshop page so that they c
         {
             progressBar.value = 0f;
         }
-	}
+    }
 }
 
 [System.Serializable]
 public class WorkshopModPack
 {
     // gets populated when the modpack is loaded; shouldn't be serialized since it would go out of sync
-    [TinyJSON.Skip]
-    public string filename;
+    [Skip] public string filename;
 
     // populated by the app, should generally be different each time anyways
-    [TinyJSON.Skip]
-    public string changenote = "Version 1.0";
-    
+    [Skip] public string changenote = "Version 1.0";
+
     // string, because this is a ulong and JSON doesn't like em
     public string publishedfileid = "";
     public string contentfolder = "";
-	public string previewfile = "";
-	public int visibility = 2;          // hidden by default!
-    public string title = "My New Mod Pack";
-	public string description = "Description goes here";
+    public string previewfile = "";
+    public int visibility = 2; // hidden by default!
+    public string title = "New Mod";
+    public string description = "Description goes here";
     public string metadata = "";
     public List<string> tags = new List<string>();
 
@@ -589,7 +565,7 @@ public class WorkshopModPack
     {
         var config = Config.Load();
 
-        if(!config.validateTags)
+        if (!config.validateTags)
         {
             return;
         }
@@ -599,7 +575,7 @@ public class WorkshopModPack
             // get rid of tags that aren't valid
             if (!config.validTags.Contains(tags[i]))
             {
-                Debug.LogError("Removing invalid tag: " + tags[i]);
+                Debug.LogError($"Removing invalid tag: {tags[i]}");
                 tags.RemoveAt(i);
                 i--;
             }
@@ -617,11 +593,11 @@ public class WorkshopModPack
         return pack;
     }
 
-    public void Save(string filename)
+    public void Save(string saveFilename)
     {
         string jsonString = JSON.Dump(this, true);
-        Utils.SaveJsonToFile(filename, jsonString);
+        Utils.SaveJsonToFile(saveFilename, jsonString);
 
-        Debug.Log("Saved modpack to file: " + filename);
+        Debug.Log($"Saved modpack to file: {saveFilename}");
     }
 }

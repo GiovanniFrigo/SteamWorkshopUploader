@@ -24,6 +24,8 @@ public class SteamManager : MonoBehaviour {
     // loaded from steam_appid.txt
     public static uint m_steamAppId = 0;
 
+    public static uint m_consumingAppId = 2052040;
+
     private static SteamManager s_instance;
 	private static SteamManager Instance {
 		get {
