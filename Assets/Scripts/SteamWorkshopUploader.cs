@@ -11,7 +11,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     private const string SteamLegalAgreementUrl = "https://steamcommunity.com/sharedfiles/workshoplegalagreement";
 
     private const string RelativeBasePath = "/../WorkshopContent/";
-    private const int Version = 1;
+    private const int Version = 2;
 
     public Text versionText;
     public Text statusText;
