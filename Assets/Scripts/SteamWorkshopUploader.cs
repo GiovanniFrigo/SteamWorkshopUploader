@@ -8,11 +8,14 @@ using TinyJSON;
 
 public class SteamWorkshopUploader : MonoBehaviour
 {
+    private const string SteamLegalAgreementUrl = "https://steamcommunity.com/sharedfiles/workshoplegalagreement";
+
     private const string RelativeBasePath = "/../WorkshopContent/";
     private const int Version = 1;
 
     public Text versionText;
     public Text statusText;
+    public Button statusTextButton;
     public Slider progressBar;
 
     public RectTransform packListRoot;
@@ -45,6 +48,8 @@ public class SteamWorkshopUploader : MonoBehaviour
     private string lastLoggedString;
     private float lastLogTime;
 
+    private string statusUrl;
+
     private void Awake()
     {
         SetupDirectories();
@@ -67,6 +72,9 @@ public class SteamWorkshopUploader : MonoBehaviour
             RefreshPackList();
             RefreshCurrentModPack();
         }
+
+        statusTextButton.onClick.AddListener(OnStatusTextClick);
+        statusTextButton.interactable = false;
     }
 
     private void OnApplicationQuit()
@@ -214,7 +222,7 @@ public class SteamWorkshopUploader : MonoBehaviour
             //EditModPack(filename);
         }
     }
-    
+
     public void RefreshPreview()
     {
         string path = FindHeaderImage();
@@ -462,20 +470,16 @@ public class SteamWorkshopUploader : MonoBehaviour
 
         if (callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
         {
-            /*
-             * Include text next to the button that submits an item to the workshop, something to the effect of: “By submitting this item, you agree to the workshop terms of service” (including the link)
-After a user submits an item, open a browser window to the Steam Workshop page for that item by calling:
-SteamFriends()->ActivateGameOverlayToWebPage( const char *pchURL );
-pchURL should be set to steam://url/CommunityFilePage/PublishedFileId_t replacing PublishedFileId_t with the workshop item Id.
-This has the benefit of directing the author to the workshop page so that they can see the item and configure it further if necessary and will make it easy for the user to read and accept the Steam Workshop Legal Agreement.
-             * */
+            DisplayAndLogStatus("You need to accept the Steam Workshop legal agreement for this game before you can upload items!\n" +
+                                $"<a href=\"{SteamLegalAgreementUrl}\">{SteamLegalAgreementUrl}</a>", SteamLegalAgreementUrl);
+            return;
         }
 
         if (callback.m_eResult == EResult.k_EResultOK)
         {
             var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={callback.m_nPublishedFileId}";
             DisplayAndLogStatus($"Item creation successful! Published Item ID: {callback.m_nPublishedFileId}\n" +
-                                $"<a href=\"{url}\">{url}</a>");
+                                $"<a href=\"{url}\">{url}</a>", url);
 
             currentPack.publishedfileid = callback.m_nPublishedFileId.ToString();
             /*
@@ -492,7 +496,21 @@ This has the benefit of directing the author to the workshop page so that they c
         }
     }
 
-    private void DisplayAndLogStatus(string status)
+    private void OnStatusTextClick()
+    {
+        if (!string.IsNullOrEmpty(statusUrl))
+        {
+            Application.OpenURL(statusUrl);
+        }
+    }
+
+    private void SetStatusUrl(string url)
+    {
+        statusUrl = url;
+        statusTextButton.interactable = !string.IsNullOrEmpty(statusUrl);
+    }
+
+    private void DisplayAndLogStatus(string status, string urlToOpenOnClick = null)
     {
         // prevent log spamming to the console
         if (lastLoggedString != status || Time.realtimeSinceStartup - lastLogTime > 0.5f)
@@ -502,6 +520,17 @@ This has the benefit of directing the author to the workshop page so that they c
 
             lastLoggedString = status;
             lastLogTime = Time.realtimeSinceStartup;
+
+            if (!string.IsNullOrEmpty(urlToOpenOnClick))
+            {
+                statusUrl = urlToOpenOnClick;
+                statusTextButton.interactable = true;
+            }
+            else
+            {
+                statusUrl = string.Empty;
+                statusTextButton.interactable = false;
+            }
         }
     }
 
@@ -515,7 +544,8 @@ This has the benefit of directing the author to the workshop page so that they c
 
         if (callback.m_bUserNeedsToAcceptWorkshopLegalAgreement)
         {
-            DisplayAndLogStatus("You need to accept the Steam Workshop legal agreement for this game before you can upload items!");
+            DisplayAndLogStatus("You need to accept the Steam Workshop legal agreement for this game before you can upload items!\n" +
+                                $"<a href=\"{SteamLegalAgreementUrl}\">{SteamLegalAgreementUrl}</a>", SteamLegalAgreementUrl);
             return;
         }
 
@@ -526,7 +556,7 @@ This has the benefit of directing the author to the workshop page so that they c
             case EResult.k_EResultOK:
                 var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={callback.m_nPublishedFileId}";
                 DisplayAndLogStatus($"Item update successful! Published Item ID: {callback.m_nPublishedFileId}\n" +
-                                    $"<a href=\"{url}\">{url}</a>");
+                                    $"<a href=\"{url}\">{url}</a>", url);
                 break;
             case EResult.k_EResultFail:
                 DisplayAndLogStatus("Upload failed.");

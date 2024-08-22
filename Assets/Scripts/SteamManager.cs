@@ -84,7 +84,7 @@ public class SteamManager : MonoBehaviour {
 		string appidString = Utils.LoadTextFile(Application.dataPath + "/../steam_appid.txt");
         m_steamAppId = uint.Parse(appidString);
 
-		Debug.Log("[Steamworks.NET] App ID is: " + m_steamAppId.ToString());
+		Debug.Log($"[Steamworks.NET] App ID is: {m_steamAppId}, publishing to {m_consumingAppId}");
 
         try
         {
