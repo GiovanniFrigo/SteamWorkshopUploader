@@ -238,7 +238,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         DisplayAndLogStatus("Validating mod pack...");
 
-        string path = Path.Join(basePath, pack.previewfile);
+        string path = Path.Join(basePath, pack.contentfolder, pack.previewfile);
 
         var info = new FileInfo(path);
         if (info.Length >= 1024 * 1024)
@@ -396,7 +396,7 @@ public class SteamWorkshopUploader : MonoBehaviour
         SteamUGC.SetItemDescription(handle, pack.description);
         SteamUGC.SetItemVisibility(handle, (ERemoteStoragePublishedFileVisibility)pack.visibility);
         SteamUGC.SetItemContent(handle, Path.Join(basePath, pack.contentfolder));
-        SteamUGC.SetItemPreview(handle, Path.Join(basePath, pack.previewfile));
+        SteamUGC.SetItemPreview(handle, Path.Join(basePath, pack.contentfolder, pack.previewfile));
         SteamUGC.SetItemMetadata(handle, string.Empty);
         SteamUGC.SetItemTags(handle, new List<string>());
 
