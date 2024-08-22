@@ -24,9 +24,9 @@ public class SteamWorkshopUploader : MonoBehaviour
     public Text submitButtonText;
     public Text modPackContents;
     public RawImage modPackPreview;
+    public GameObject previewNotFoundPlaceholder;
     public InputField modPackName;
     public InputField modPackTitle;
-    public InputField modPackPreviewFilename;
     public InputField modPackContentFolder;
     public InputField modPackChangeNotes;
     public InputField modPackDescription;
@@ -189,7 +189,6 @@ public class SteamWorkshopUploader : MonoBehaviour
         RefreshPreview();
 
         modPackTitle.text = currentPack.title;
-        modPackPreviewFilename.text = currentPack.previewfile;
         modPackContentFolder.text = currentPack.contentfolder;
         modPackDescription.text = currentPack.description;
         modPackTags.text = string.Join(",", currentPack.tags.ToArray());
@@ -215,14 +214,24 @@ public class SteamWorkshopUploader : MonoBehaviour
             //EditModPack(filename);
         }
     }
-
-    private void RefreshPreview()
+    
+    public void RefreshPreview()
     {
-        string path = Path.Join(basePath, currentPack.previewfile);
+        string path = FindHeaderImage();
 
-        // NOTE : intentionally set texture to null if no texture is found
+        if (string.IsNullOrEmpty(path))
+        {
+            // intentionally set texture to null if no texture is found
+            modPackPreview.texture = null;
+            previewNotFoundPlaceholder.SetActive(true);
+            return;
+        }
+
+        currentPack.previewfile = Path.GetFileName(path);
+
         var preview = Utils.LoadTextureFromFile(path);
         modPackPreview.texture = preview;
+        previewNotFoundPlaceholder.SetActive(preview == null);
     }
 
     private bool ValidateModPack(WorkshopModPack pack)
@@ -247,17 +256,33 @@ public class SteamWorkshopUploader : MonoBehaviour
         RefreshCurrentModPack();
     }
 
+    private string FindHeaderImage()
+    {
+        var pngPath = Path.Join(basePath, currentPack.contentfolder, "header_image.png");
+        if (File.Exists(pngPath))
+        {
+            return pngPath;
+        }
+
+        var jpgPath = Path.Join(basePath, currentPack.contentfolder, "header_image.jpg");
+        if (File.Exists(jpgPath))
+        {
+            return jpgPath;
+        }
+
+        return string.Empty;
+    }
+
     private void OnChanges(WorkshopModPack pack)
     {
         // interface stuff
-        pack.previewfile = modPackPreviewFilename.text;
         pack.title = modPackTitle.text;
         pack.description = modPackDescription.text;
         pack.tags = string.IsNullOrEmpty(modPackTags.text) ? new List<string>() : new List<string>(modPackTags.text.Split(','));
         pack.visibility = modPackVisibility.value;
     }
 
-    private void AddModPack()
+    public void AddModPack()
     {
         var packName = modPackName.text;
 
@@ -295,7 +320,7 @@ public class SteamWorkshopUploader : MonoBehaviour
         }
     }
 
-    private void SubmitCurrentModPack()
+    public void SubmitCurrentModPack()
     {
         if (currentPack != null)
         {
@@ -313,6 +338,19 @@ public class SteamWorkshopUploader : MonoBehaviour
                     UploadModPack(currentPack);
                 }
             }
+        }
+    }
+
+    public void BrowseCurrentModPack()
+    {
+        if (currentPack != null)
+        {
+            OnChanges(currentPack);
+            SaveCurrentModPack();
+
+            var itemPath = Path.Join(basePath, currentPack.contentfolder);
+            Debug.Log($"Browsing to {itemPath}");
+            Application.OpenURL($"file:///{itemPath}");
         }
     }
 
