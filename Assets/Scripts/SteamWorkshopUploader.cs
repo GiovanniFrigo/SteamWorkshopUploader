@@ -57,7 +57,7 @@ public class SteamWorkshopUploader : MonoBehaviour
 
     private void Start()
     {
-        versionText.text = $"Golden Lap - Steam Workshop Uploader - Build {Version}";
+        versionText.text = $"Golden Lap BETA TEST - Steam Workshop Uploader - Build {Version}";
 
         if (SteamManager.m_steamAppId == 0)
         {
