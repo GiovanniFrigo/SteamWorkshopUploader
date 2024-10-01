@@ -11,7 +11,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     private const string SteamLegalAgreementUrl = "https://steamcommunity.com/sharedfiles/workshoplegalagreement";
 
     private const string RelativeBasePath = "/../WorkshopContent/";
-    private const int Version = 2;
+    private const int Version = 3;
 
     public Text versionText;
     public Text statusText;
@@ -33,8 +33,9 @@ public class SteamWorkshopUploader : MonoBehaviour
     public InputField modPackContentFolder;
     public InputField modPackChangeNotes;
     public InputField modPackDescription;
-    public InputField modPackTags;
     public Dropdown modPackVisibility;
+    public Dropdown motorsportTag;
+    public Dropdown eraTag;
 
     private string basePath;
 
@@ -199,8 +200,26 @@ public class SteamWorkshopUploader : MonoBehaviour
         modPackTitle.text = currentPack.title;
         modPackContentFolder.text = currentPack.contentfolder;
         modPackDescription.text = currentPack.description;
-        modPackTags.text = string.Join(",", currentPack.tags.ToArray());
         modPackVisibility.value = currentPack.visibility;
+
+        motorsportTag.value = 0;
+        eraTag.value = 0;
+        foreach (var tagString in currentPack.tags)
+        {
+            var motorsportTagIndex = motorsportTag.options.FindIndex(t => t.text == tagString);
+            if (motorsportTagIndex > -1)
+            {
+                motorsportTag.value = motorsportTagIndex;
+                continue;
+            }
+
+            var eraTagIndex = eraTag.options.FindIndex(t => t.text == tagString);
+            if (eraTagIndex > -1)
+            {
+                eraTag.value = eraTagIndex;
+                continue;
+            }
+        }
     }
 
     private void SelectModPack(string filename)
@@ -230,6 +249,7 @@ public class SteamWorkshopUploader : MonoBehaviour
         if (string.IsNullOrEmpty(path))
         {
             // intentionally set texture to null if no texture is found
+            currentPack.previewfile = "";
             modPackPreview.texture = null;
             previewNotFoundPlaceholder.SetActive(true);
             return;
@@ -246,13 +266,16 @@ public class SteamWorkshopUploader : MonoBehaviour
     {
         DisplayAndLogStatus("Validating mod pack...");
 
-        string path = Path.Join(basePath, pack.contentfolder, pack.previewfile);
-
-        var info = new FileInfo(path);
-        if (info.Length >= 1024 * 1024)
+        if (!string.IsNullOrEmpty(pack.previewfile))
         {
-            DisplayAndLogStatus("ERROR: Preview file must be <1MB!");
-            return false;
+            string path = Path.Join(basePath, pack.contentfolder, pack.previewfile);
+
+            var info = new FileInfo(path);
+            if (info.Length >= 1024 * 1024)
+            {
+                DisplayAndLogStatus("ERROR: Preview file must be <1MB!");
+                return false;
+            }
         }
 
         return true;
@@ -286,8 +309,17 @@ public class SteamWorkshopUploader : MonoBehaviour
         // interface stuff
         pack.title = modPackTitle.text;
         pack.description = modPackDescription.text;
-        pack.tags = string.IsNullOrEmpty(modPackTags.text) ? new List<string>() : new List<string>(modPackTags.text.Split(','));
         pack.visibility = modPackVisibility.value;
+        
+        pack.tags.Clear();
+        if (motorsportTag.value > 0)
+        {
+            pack.tags.Add(motorsportTag.options[motorsportTag.value].text);
+        }
+        if (eraTag.value > 0)
+        {
+            pack.tags.Add(eraTag.options[eraTag.value].text);
+        }
     }
 
     public void AddModPack()
@@ -404,12 +436,12 @@ public class SteamWorkshopUploader : MonoBehaviour
         SteamUGC.SetItemDescription(handle, pack.description);
         SteamUGC.SetItemVisibility(handle, (ERemoteStoragePublishedFileVisibility)pack.visibility);
         SteamUGC.SetItemContent(handle, Path.Join(basePath, pack.contentfolder));
-        SteamUGC.SetItemPreview(handle, Path.Join(basePath, pack.contentfolder, pack.previewfile));
+        SteamUGC.SetItemPreview(handle,
+                                string.IsNullOrEmpty(pack.previewfile)
+                                    ? string.Empty
+                                    : Path.Join(basePath, pack.contentfolder, pack.previewfile));
         SteamUGC.SetItemMetadata(handle, string.Empty);
-        SteamUGC.SetItemTags(handle, new List<string>());
-
-        // pack.ValidateTags();
-        // SteamUGC.SetItemTags(handle, pack.tags);
+        SteamUGC.SetItemTags(handle, pack.tags);
     }
 
     private void SubmitModPack(UGCUpdateHandle_t handle, WorkshopModPack pack)
