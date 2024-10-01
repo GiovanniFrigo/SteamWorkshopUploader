@@ -54,6 +54,7 @@ public class SteamWorkshopUploader : MonoBehaviour
     private void Awake()
     {
         SetupDirectories();
+        Screen.SetResolution(800, 760, fullscreen: false);
     }
 
     private void Start()
@@ -310,12 +311,13 @@ public class SteamWorkshopUploader : MonoBehaviour
         pack.title = modPackTitle.text;
         pack.description = modPackDescription.text;
         pack.visibility = modPackVisibility.value;
-        
+
         pack.tags.Clear();
         if (motorsportTag.value > 0)
         {
             pack.tags.Add(motorsportTag.options[motorsportTag.value].text);
         }
+
         if (eraTag.value > 0)
         {
             pack.tags.Add(eraTag.options[eraTag.value].text);
